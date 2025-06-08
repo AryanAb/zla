@@ -13,10 +13,10 @@ pub fn main() !void {
     const A = try zla.matrix.Matrix(f32).init(allocator, 2, 2);
     defer A.deinit();
 
-    try A.fromArray(&[_][]const f32{
+    try A.fromSlice(&[_][]const f32{
         &[_]f32{ 4, 3 },
         &[_]f32{ 6, 3 },
     });
 
-    std.debug.print("{}\n", A.det());
+    std.debug.print("{}\n", .{try A.det()});
 }

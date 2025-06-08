@@ -58,6 +58,6 @@ Below is a list of features currently supported.
 * Spectral Decomposition
 * Complex matrices
 * Integer and float vectors
-* dot and cross products
+* Dot and cross products
 * Vector norms
 * Linear system solver
