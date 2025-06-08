@@ -1,12 +1,24 @@
+//! Module containing matrix operations.
+//! Matrices can be initialized using as follows:
+//! ```zig
+//! A = try Matrix(f32).init(allocator, 3, 3);
+//! ```
+//! Do not forget to de-initialize the matrices.
+//! ```zig
+//! A.deinit();
+//! ```
+//!
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const print = std.debug.print;
 
 const MatrixError = error{
     SizeMismatch,
     SingularMatrix,
 };
 
+/// A matrix based on 2D array.
+/// Type T must be provided at compile time.
 pub fn Matrix(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -15,6 +27,9 @@ pub fn Matrix(comptime T: type) type {
         array: [][]T,
         allocator: Allocator,
 
+        /// Creates a matrix of size n x m.
+        /// The matrix will be allocated on the heap using the provided allocator.
+        /// This means that the matrix must be deallocated to avoid memory leaks.
         pub fn init(allocator: Allocator, n: usize, m: usize) !Self {
             const array = try allocator.alloc([]T, n);
             for (array) |*row| {
@@ -28,6 +43,7 @@ pub fn Matrix(comptime T: type) type {
             };
         }
 
+        /// Destroy the matrix by releasing the 2D array from the memory
         pub fn deinit(self: *const Self) void {
             for (self.array) |row| {
                 self.allocator.free(row);
@@ -35,22 +51,26 @@ pub fn Matrix(comptime T: type) type {
             self.allocator.free(self.array);
         }
 
-        pub fn fromSlice(self: *const Self, arr: []const []const T) !void {
-            if (arr.len == 0) {
+        /// Uses the provided slice to populate the matrix.
+        /// If the size of the slice does not match that of the matrix, a SizeMismatch error is returned
+        pub fn fromSlice(self: *const Self, slice: []const []const T) !void {
+            if (slice.len == 0) {
                 return MatrixError.SizeMismatch;
             }
 
-            if (arr.len != self.size[0] or arr[0].len != self.size[1]) {
+            if (slice.len != self.size[0] or slice[0].len != self.size[1]) {
                 return MatrixError.SizeMismatch;
             }
 
             for (0..self.size[0]) |i| {
                 for (0..self.size[1]) |j| {
-                    self.set(i, j, arr[i][j]);
+                    self.set(i, j, slice[i][j]);
                 }
             }
         }
 
+        /// Takes in another matrix and returns true if both matrices equal.
+        /// Two matrices are equal if they are equal element wise.
         pub fn equals(self: *const Self, other: Matrix(T)) !bool {
             if (self.size[0] != other.size[0] or self.size[1] != other.size[1]) {
                 return MatrixError.SizeMismatch;
@@ -66,15 +86,18 @@ pub fn Matrix(comptime T: type) type {
             return true;
         }
 
-        pub fn printDebug(self: *const Self) void {
+        /// Prints the content of the matrix.
+        /// Each row will be printed on a separate row.
+        pub fn print(self: *const Self) void {
             for (0..self.size[0]) |i| {
                 for (0..self.size[1]) |j| {
-                    print("{} ", .{self.get(i, j)});
+                    std.debug.print("{} ", .{self.get(i, j)});
                 }
-                print("\n", .{});
+                std.debug.print("\n", .{});
             }
         }
 
+        /// Fills the entire matrix with val.
         pub fn fill(self: *const Self, val: T) void {
             for (0..self.size[0]) |i| {
                 for (0..self.size[1]) |j| {
@@ -83,14 +106,68 @@ pub fn Matrix(comptime T: type) type {
             }
         }
 
+        /// Get the element at i-th row and j-th column
         pub inline fn get(self: *const Self, i: usize, j: usize) T {
             return self.array[i][j];
         }
 
+        /// Set the element at i-th row and j-th column to val
         pub inline fn set(self: *const Self, i: usize, j: usize, val: T) void {
             self.array[i][j] = val;
         }
 
+        /// Performs matrix addition.
+        /// If the two matrices do not have the same size, a SizeMismatch error is returned.
+        pub fn add(self: *const Self, other: Matrix(T)) !Matrix(T) {
+            if (self.size[0] != other.size[0] or self.size[1] != other.size[1]) {
+                return MatrixError.SizeMismatch;
+            }
+            const n, const m = self.size;
+
+            const result = try Matrix(T).init(self.allocator, n, m);
+            for (0..n) |i| {
+                for (0..m) |j| {
+                    result.set(i, j, self.get(i, j) + other.get(i, j));
+                }
+            }
+
+            return result;
+        }
+
+        /// Performs matrix subtraction.
+        /// If the two matrices do not have the same size, a SizeMismatch error is returned.
+        pub fn sub(self: *const Self, other: Matrix(T)) !Matrix(T) {
+            if (self.size[0] != other.size[0] or self.size[1] != other.size[1]) {
+                return MatrixError.SizeMismatch;
+            }
+            const n, const m = self.size;
+
+            const result = try Matrix(T).init(self.allocator, n, m);
+            for (0..n) |i| {
+                for (0..m) |j| {
+                    result.set(i, j, self.get(i, j) - other.get(i, j));
+                }
+            }
+
+            return result;
+        }
+
+        /// Performs scalar multiplication.
+        pub fn scalarMult(self: *const Self, scalar: T) !Matrix(T) {
+            const n, const m = self.size;
+            const result = try Matrix(T).init(self.allocator, n, m);
+
+            for (0..n) |i| {
+                for (0..m) |j| {
+                    result.set(i, j, scalar * self.get(i, j));
+                }
+            }
+
+            return result;
+        }
+
+        /// Performs matrix multiplication.
+        /// If the number of columns of the current matrix does not equal number of rows of the provided matrix, a SizeMismatch error is returned.
         pub fn mult(self: *const Self, other: Matrix(T)) !Matrix(T) {
             const a, const b = other.size;
             if (a != self.size[1]) {
@@ -111,6 +188,9 @@ pub fn Matrix(comptime T: type) type {
             return result;
         }
 
+        /// Returns two matrices L and U which are the result of the LU decomposition of the matrix.
+        /// Uses Crout's method for matrix decomposition.
+        /// If the matrix is not a square matrix, a SizeMismatch error is returned.
         pub fn LU(self: *const Self) !std.meta.Tuple(&.{ Matrix(f32), Matrix(f32) }) {
             if (self.size[0] != self.size[1]) {
                 return MatrixError.SizeMismatch;
@@ -146,6 +226,8 @@ pub fn Matrix(comptime T: type) type {
             return .{ L, U };
         }
 
+        /// Returns the determinant of the matrix.
+        /// If the matrix is not a square matrix, a SizeMismatch error is returned.
         pub fn det(self: *const Self) !f32 {
             var ans: f32 = 1;
 
@@ -166,6 +248,9 @@ pub fn Matrix(comptime T: type) type {
             return ans;
         }
 
+        /// Returns the inverse matrix.
+        /// NOTE: Calculating the inverse matrix should be avoided when possible due to poor numerical stability.
+        /// If the matrix is not a square matrix, a SizeMismatch error is returned.
         pub fn inv(self: *const Self) !Matrix(f32) {
             if (self.size[0] != self.size[1]) {
                 return MatrixError.SizeMismatch;
@@ -216,6 +301,7 @@ pub fn Matrix(comptime T: type) type {
             return U_inv.mult(L_inv);
         }
 
+        /// Returns the transpose of the matrix.
         pub fn transpose(self: *const Self) Matrix(T) {
             const result = try Matrix(T).init(self.allocator, self.size[0], self.size[1]);
             for (0..self.size[0]) |i| {
@@ -229,6 +315,7 @@ pub fn Matrix(comptime T: type) type {
     };
 }
 
+/// Returns the identity matrix of size n x n.
 pub fn I(comptime T: type, n: usize, allocator: Allocator) !Matrix(T) {
     const matrix = try Matrix(T).init(allocator, n, n);
     for (0..n) |i| {

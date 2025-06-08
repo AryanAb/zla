@@ -1,8 +1,6 @@
 const std = @import("std");
 const zla = @import("zla");
 
-const print = std.debug.print;
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -20,5 +18,5 @@ pub fn main() !void {
         &[_]f32{ 6, 3 },
     });
 
-    A.printDebug();
+    std.debug.print("{}\n", A.det());
 }
